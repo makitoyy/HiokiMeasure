@@ -6,7 +6,7 @@ import time
 import sys
 from datetime import datetime
 
-PORT = "COM4"
+PORT = "COM2"
 AVERAGES = 3  # ile razy mierzyc kazdy punkt
 
 plt.ion()
@@ -74,7 +74,7 @@ def get_measurement(ser, retries=3):
 
 
 def trigger_and_wait(ser, f):
-    """Wysyla trigger i czeka na zakonczenie pomiaru."""
+    """Wysyla trigger i czeka staly czas — bez ESR0."""
     ser.write(f":FREQUENCY {f:.3f}\r".encode())
     time.sleep(0.2)
     ser.write("*TRG\r".encode())
@@ -91,22 +91,6 @@ def trigger_and_wait(ser, f):
         elapsed += step
     sys.stdout.write("\r✅ Czekanie zakończone.         \n")
 
-    # Czekanie na ESR0 == 6
-    while True:
-        response = ""
-        try:
-            ser.write(b":ESR0?\r")
-            time.sleep(0.2)
-            response = ser.readline().decode().strip()
-            print(f"ESR0 response: '{response}'")
-            if int(response) == 6:
-                print("✅ Pomiar gotowy")
-                break
-        except ValueError:
-            print(f"⚠️ Nieprawidłowa odpowiedź: '{response}', ponawiam...")
-        time.sleep(0.1)
-
-    ser.write(b"*CLS\r")
     time.sleep(0.2)
 
 
@@ -157,8 +141,6 @@ def main():
     start_freq = float(input("Enter start frequency (Hz): "))
     stop_freq  = float(input("Enter stop frequency (Hz): "))
     points     = int(input("Enter number of measurement points: "))
-    show_freq_labels     = input("Show frequency labels on Nyquist? (y/n): ").strip().lower() == 'y'
-    show_nyquist_markers = input("Show markers on Nyquist? (y/n): ").strip().lower() == 'y'
 
     ser = serial.Serial(PORT, 9600, timeout=1)
     time.sleep(2)
@@ -214,9 +196,7 @@ def main():
     freqs = logspace_frequencies(start_freq, stop_freq, points)
 
     real_parts, imag_parts = [], []
-    magnitude, phase_deg   = [], []
     csv_data               = []
-
     live_freqs, live_Z, live_phase, live_Rs, live_C = [], [], [], [], []
 
     print(f"\n⚙️ Starting measurements (avg {AVERAGES}x per point)...")
@@ -231,12 +211,9 @@ def main():
 
             real_parts.append(real)
             imag_parts.append(imag)
-            magnitude.append(z)
-            phase_deg.append(phase)
 
-            # CSV: tylko dane z wykresow (Z, phase, Rs, C)
             csv_data.append((
-                f,
+                round(f, 4),
                 round(z, 6),
                 round(phase, 4),
                 round(rs, 6),
@@ -266,7 +243,6 @@ def main():
 
     plt.ioff()
 
-    # Zapis CSV
     timestamp    = datetime.now().strftime("%Y%m%d_%H%M%S")
     csv_filename = f"{experiment_name}_{timestamp}_data.csv"
     png_filename = f"{experiment_name}_{timestamp}_nyquist.png"
@@ -288,12 +264,9 @@ def main():
 
     # Nyquist
     plt.figure(figsize=(8, 6))
-    plt.plot(real_parts, -np.array(imag_parts), 'b-', label='Curve')
-    if show_nyquist_markers:
-        plt.plot(real_parts, -np.array(imag_parts), 'ro', label='Measurements')
-    if show_freq_labels:
-        for xv, yv, fq in zip(real_parts, -np.array(imag_parts), freqs[:len(real_parts)]):
-            plt.text(xv, yv, f"{fq:.1f} Hz", fontsize=8, rotation=45, alpha=0.7)
+    plt.plot(real_parts, -np.array(imag_parts), 'b-o', label='Measurements')
+    for xv, yv, fq in zip(real_parts, -np.array(imag_parts), live_freqs):
+        plt.text(xv, yv, f"{fq:.1f} Hz", fontsize=8, rotation=45, alpha=0.7)
     plt.xlabel('Re(Z) [Ω]')
     plt.ylabel('-Im(Z) [Ω]')
     plt.title(f'Nyquist — {experiment_name}')
@@ -303,6 +276,7 @@ def main():
     plt.tight_layout()
     plt.savefig(png_filename, facecolor='white', bbox_inches='tight', pad_inches=0.3)
     plt.savefig(svg_filename, facecolor='white', bbox_inches='tight', pad_inches=0.3)
+    print(f"📁 Nyquist saved to {png_filename}")
 
     print(f"\nℹ️ Rs at 0 Hz: {rs_dc} [Ω]")
     plt.show()
