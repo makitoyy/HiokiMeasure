@@ -195,8 +195,7 @@ def main():
 
     freqs = logspace_frequencies(start_freq, stop_freq, points)
 
-    real_parts, imag_parts = [], []
-    csv_data               = []
+    csv_data = []
     live_freqs, live_Z, live_phase, live_Rs, live_C = [], [], [], [], []
 
     print(f"\n⚙️ Starting measurements (avg {AVERAGES}x per point)...")
@@ -208,9 +207,6 @@ def main():
 
         if real is not None and z != 0:
             C, L = calculate_C_and_L(f, x)
-
-            real_parts.append(real)
-            imag_parts.append(imag)
 
             csv_data.append((
                 round(f, 4),
@@ -243,42 +239,33 @@ def main():
 
     plt.ioff()
 
-    timestamp    = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_filename = f"{experiment_name}_{timestamp}_data.csv"
-    png_filename = f"{experiment_name}_{timestamp}_nyquist.png"
-    svg_filename = f"{experiment_name}_{timestamp}_nyquist.svg"
-
-    with open(csv_filename, mode='w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow([
-            "Frequency (Hz)",
-            "|Z| [Ohm]",
-            "Phase [deg]",
-            "Rs [Ohm]",
-            "C [F]",
-            "Re(Z) [Ohm]",
-            "Im(Z) [Ohm]",
-        ])
-        writer.writerows(csv_data)
-    print(f"📁 Data saved to {csv_filename}")
-
-    # Nyquist
-    plt.figure(figsize=(8, 6))
-    plt.plot(real_parts, -np.array(imag_parts), 'b-o', label='Measurements')
-    for xv, yv, fq in zip(real_parts, -np.array(imag_parts), live_freqs):
-        plt.text(xv, yv, f"{fq:.1f} Hz", fontsize=8, rotation=45, alpha=0.7)
-    plt.xlabel('Re(Z) [Ω]')
-    plt.ylabel('-Im(Z) [Ω]')
-    plt.title(f'Nyquist — {experiment_name}')
-    plt.grid(True)
-    plt.axis('equal')
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(png_filename, facecolor='white', bbox_inches='tight', pad_inches=0.3)
-    plt.savefig(svg_filename, facecolor='white', bbox_inches='tight', pad_inches=0.3)
-    print(f"📁 Nyquist saved to {png_filename}")
-
     print(f"\nℹ️ Rs at 0 Hz: {rs_dc} [Ω]")
+
+    save = input("\n💾 Zapisać wyniki do pliku CSV i PNG? (y/n): ").strip().lower()
+    if save == 'y':
+        timestamp    = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_filename = f"{experiment_name}_{timestamp}_data.csv"
+        png_filename = f"{experiment_name}_{timestamp}_live_plot.png"
+
+        with open(csv_filename, mode='w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([
+                "Frequency (Hz)",
+                "|Z| [Ohm]",
+                "Phase [deg]",
+                "Rs [Ohm]",
+                "C [F]",
+                "Re(Z) [Ohm]",
+                "Im(Z) [Ohm]",
+            ])
+            writer.writerows(csv_data)
+        print(f"📁 CSV saved to {csv_filename}")
+
+        fig.savefig(png_filename, facecolor='white', bbox_inches='tight', pad_inches=0.3)
+        print(f"📁 Plot saved to {png_filename}")
+    else:
+        print("⏭️ Pomijam zapis.")
+
     plt.show()
 
 
